@@ -35,11 +35,9 @@ class PlaylistConverter:
             headers=content_headers
         )
         response_json = response.json()
-        print(response_json)
 
         # return the playlist id
         return response_json["id"]
-        # return 0
 
     # get the existing playlist from youtube
     def get_youtube_playist(self):
