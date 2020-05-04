@@ -1,19 +1,43 @@
+import os
 import json
 import requests
+import youtube_dl
+
+from google_auth_oauthlib import flow
+from googleapiclient import discovery, errors
+
 
 from spotify_credentials import user_id, OAuth_token
+
+# from googleapiclient.discovery import build
 
 
 class PlaylistConverter:
 
     def __init__(self):
         self.spotify_user_id = user_id
-        # self.spotify_OAuth_token = OAuth_token
         self.bearer_token = "Bearer {}".format(OAuth_token)
+        self.youtube_client = self.get_youtube_client()
 
-    # get the youtube client
-    def youtube_login(self):
-        pass
+    # get the youtube client, code in this function is based on code from Youtube Data API
+    def get_youtube_client(self):
+        os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+
+        client_secrets_file = "client_id.json"
+
+        # Get credentials and create an API client
+        scopes = ["https://www.googleapis.com/auth/youtube.readonly"]
+
+        youtube_flow = flow.InstalledAppFlow.from_client_secrets_file(
+            client_secrets_file, scopes)
+
+        youtube_credentials = youtube_flow.run_console()
+
+        # from the Youtube DATA API
+        youtube_client = discovery.build(
+            "youtube", "v3", credentials=youtube_credentials)
+
+        return youtube_client
 
     # create a new spotify playlist
     def make_spotify_playlist(self):
@@ -49,10 +73,48 @@ class PlaylistConverter:
         return response_json["id"]
 
     # get the existing playlist from youtube
-    def get_youtube_playlist(self):
-        pass
+    def get_youtube_playlist(self, playlist_name):
+        # make a request to the API to get all of the channel's playlists
+        playlists_request = self.youtube_client.playlists().list(
+            part="snippet,contentDetails",
+            mine="true"
+        )
+        playlists_response = playlists_request.execute()
+
+        playlist_id = ""
+
+        # find the desired playlist by it's name
+        for item in playlists_response["items"]:
+            print(item["snippet"]["title"])
+            if item["snippet"]["title"] == playlist_name:
+                playlist_id = item["id"]
+
+        print(playlist_id)
+
+        video_IDs = []
+
+        # using the playlist ID, make another request to get all of the videos from the playlist
+        if playlist_id != "":
+            videos_request = self.youtube_client.playlistItems().list(
+                part="contentDetails,id",
+                playlistId=playlist_id
+            )
+            videos_response = videos_request.execute()
+
+            for video in videos_response["items"]:
+                video_IDs.append(video["id"])
+
+            print(json.dumps(videos_response, indent=2))
+            print(*video_IDs)
+        else:
+            print("invalid playlist id")
+
+    # print(json.dumps(response["items"]["snippet"], indent=2))
+
+    # for item in response["items"]:
 
     # get the corresponding spotify_uri for each song in the youtube playlist
+
     def get_spotify_song_uri(self, song, artist):
         query = "https://api.spotify.com/v1/search?q={}+{}&type=track".format(
             song, artist)
@@ -71,19 +133,20 @@ class PlaylistConverter:
         # we have to go two levels within the dictionary to get all songs with the same name and artist
         songs_with_same_name = response_json["tracks"]["items"]
 
-        # print(json.dumps(song_uri, indent=2))
-
         # get the URI from the first song in the list
         song_uri = songs_with_same_name[0]["uri"]
 
         return song_uri
 
     # add the list of songs into the spotify playlist
-
     def add_to_spotify_playlist(self):
         pass
 
 
-newPlaylist = PlaylistConverter()
-newPlaylist.get_spotify_song_uri("advice", "kehlani")
-# print(newPlaylist.make_spotify_playlist())
+if __name__ == "__main__":
+    newPlaylist = PlaylistConverter()
+
+    newPlaylist.get_youtube_playlist("music")
+
+    # newPlaylist.get_spotify_song_uri("advice", "kehlani")
+    # print(newPlaylist.make_spotify_playlist())
