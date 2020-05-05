@@ -14,7 +14,7 @@
 
 -Follow https://developers.google.com/youtube/v3/getting-started/ to enable OAuth for Youtube and download the client_id.json file and copy it into the project
 
--Run python playlist_converter.py, a URL will appear for you to authorize the application, click the URL and go through the process, you will get an authorization code, paste it back into the terminal
+-Run `python playlist_converter.py`, enter the name of the Youtube playlist you would like to convert, a URL will appear for you to authorize the application, click the URL and go through the process. You will get an authorization code, paste it back into the terminal
 
 ## Troubleshooting
 
