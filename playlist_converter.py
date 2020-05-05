@@ -6,10 +6,7 @@ import youtube_dl
 from google_auth_oauthlib import flow
 from googleapiclient import discovery, errors
 
-
 from spotify_credentials import user_id, OAuth_token
-
-# from googleapiclient.discovery import build
 
 
 class PlaylistConverter:
@@ -17,14 +14,17 @@ class PlaylistConverter:
     def __init__(self, playlist_name):
         self.playlist_name = playlist_name
         self.youtube_client = self.get_youtube_client()
+
         self.spotify_user_id = user_id
         self.bearer_token = "Bearer {}".format(OAuth_token)
+        # the following is a dictionary with a singular key being set to an array of URIs
+        # since this is the format that the Spotify API uses for playlist modification requests
         self.spotify_URIs = {"uris": []}
 
-    # get the youtube client, code in this function is based on code from Youtube Data API
+    # get the youtube client
+    # code in this function is based on code from Youtube Data API
     def get_youtube_client(self):
         os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-
         client_secrets_file = "client_id.json"
 
         # Get credentials and create an API client
@@ -35,7 +35,6 @@ class PlaylistConverter:
 
         youtube_credentials = youtube_flow.run_console()
 
-        # from the Youtube DATA API
         youtube_client = discovery.build(
             "youtube", "v3", credentials=youtube_credentials)
 
@@ -75,10 +74,10 @@ class PlaylistConverter:
         return response_json["id"]
 
     # get the existing playlist from youtube
-
     def get_songs_from_youtube(self):
         playlist_id = ""
         all_song_URIs = []
+
         # make a request to the API to get all of the channel's playlists
         playlists_request = self.youtube_client.playlists().list(
             part="snippet,contentDetails",
@@ -110,7 +109,7 @@ class PlaylistConverter:
                 song_name = song["track"]
                 song_artist = song["artist"]
 
-                # add song info to dictionary
+                # add song URIs to array
                 if song_name is not None and song_artist is not None:
                     song_uri = self.get_spotify_song_uri(
                         song_name, song_artist)
@@ -124,11 +123,9 @@ class PlaylistConverter:
 
     # get the corresponding spotify_uri for each song in the youtube playlist
     def get_spotify_song_uri(self, song, artist):
-        print("song: " + song)
-        print("artist: " + artist)
+        # format the song and artists strings for the query
         song.replace(" ", "+")
         artist.replace(" ", "+")
-
         query = "https://api.spotify.com/v1/search?query=track%3A{}+artist%3A{}&type=track".format(
             song, artist)
 
@@ -147,8 +144,8 @@ class PlaylistConverter:
         songs_with_same_name = response_json["tracks"]["items"]
 
         song_uri = ""
+        # check that the list has items before using the first song in the list by default
         if len(songs_with_same_name) > 0:
-            # get the URI from the first song in the list if it exists
             song_uri = songs_with_same_name[0]["uri"]
 
         return song_uri
@@ -156,9 +153,8 @@ class PlaylistConverter:
     # convert songs from the Youtube playlist into songs for the Spotify playlist
     def convert_to_spotify_playlist(self):
 
-        # make a new playlist and get it's id
+        # make a new playlist and get it's id for the query
         playlist_id = self.make_spotify_playlist()
-
         query = "https://api.spotify.com/v1/playlists/{}/tracks".format(
             playlist_id)
 
@@ -172,10 +168,6 @@ class PlaylistConverter:
         self.spotify_URIs["uris"] = self.get_songs_from_youtube()
 
         # format the URIs to make the request
-        # request_body = json.dumps(self.spotify_URIs, indent=2)
-
-        print(self.spotify_URIs)
-
         request_body = json.dumps(self.spotify_URIs, indent=2)
 
         response = requests.post(
@@ -184,12 +176,13 @@ class PlaylistConverter:
             headers=header_fields
         )
         response_json = response.json()
-
         print(response_json)
 
         # check for valid response status
-        # if response.status_code != 200:
-        # print("invalid response")
+        if response.status_code != 200:
+            print("invalid response")
+
+        return response_json
 
 
 if __name__ == "__main__":
