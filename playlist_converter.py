@@ -176,15 +176,14 @@ class PlaylistConverter:
             headers=header_fields
         )
         response_json = response.json()
-        print(response_json)
-
-        # check for valid response status
-        if response.status_code != 200:
-            print("invalid response")
+        # print(response_json)
 
         return response_json
 
 
 if __name__ == "__main__":
-    new_playlist = PlaylistConverter("music")
+    playlist_name = input(
+        "Please enter the name of a Youtube playlist you would like to convert into a Spotify playlist: ")
+
+    new_playlist = PlaylistConverter(playlist_name)
     new_playlist.convert_to_spotify_playlist()
