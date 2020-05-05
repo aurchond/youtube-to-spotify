@@ -14,10 +14,12 @@ from spotify_credentials import user_id, OAuth_token
 
 class PlaylistConverter:
 
-    def __init__(self):
+    def __init__(self, playlist_name):
+        self.playlist_name = playlist_name
+        self.youtube_client = self.get_youtube_client()
         self.spotify_user_id = user_id
         self.bearer_token = "Bearer {}".format(OAuth_token)
-        self.youtube_client = self.get_youtube_client()
+        self.spotify_URIs = {"uris": []}
 
     # get the youtube client, code in this function is based on code from Youtube Data API
     def get_youtube_client(self):
@@ -73,7 +75,10 @@ class PlaylistConverter:
         return response_json["id"]
 
     # get the existing playlist from youtube
-    def get_youtube_playlist(self, playlist_name):
+
+    def get_songs_from_youtube(self):
+        playlist_id = ""
+        all_song_URIs = []
         # make a request to the API to get all of the channel's playlists
         playlists_request = self.youtube_client.playlists().list(
             part="snippet,contentDetails",
@@ -81,17 +86,10 @@ class PlaylistConverter:
         )
         playlists_response = playlists_request.execute()
 
-        playlist_id = ""
-
         # find the desired playlist by it's name
         for item in playlists_response["items"]:
-            print(item["snippet"]["title"])
-            if item["snippet"]["title"] == playlist_name:
+            if item["snippet"]["title"] == self.playlist_name:
                 playlist_id = item["id"]
-
-        print(playlist_id)
-
-        video_IDs = []
 
         # using the playlist ID, make another request to get all of the videos from the playlist
         if playlist_id != "":
@@ -102,21 +100,36 @@ class PlaylistConverter:
             videos_response = videos_request.execute()
 
             for video in videos_response["items"]:
-                video_IDs.append(video["id"])
+                # get the youtube URL for each video in the playlist
+                youtube_url = "https://www.youtube.com/watch?v={}".format(
+                    video["contentDetails"]["videoId"])
 
-            print(json.dumps(videos_response, indent=2))
-            print(*video_IDs)
+                # get the song name and artist
+                song = youtube_dl.YoutubeDL({}).extract_info(
+                    youtube_url, download=False)
+                song_name = song["track"]
+                song_artist = song["artist"]
+
+                # add song info to dictionary
+                if song_name is not None and song_artist is not None:
+                    song_uri = self.get_spotify_song_uri(
+                        song_name, song_artist)
+
+                    if song_uri != "":
+                        all_song_URIs.append(song_uri)
         else:
             print("invalid playlist id")
 
-    # print(json.dumps(response["items"]["snippet"], indent=2))
-
-    # for item in response["items"]:
+        return all_song_URIs
 
     # get the corresponding spotify_uri for each song in the youtube playlist
-
     def get_spotify_song_uri(self, song, artist):
-        query = "https://api.spotify.com/v1/search?q={}+{}&type=track".format(
+        print("song: " + song)
+        print("artist: " + artist)
+        song.replace(" ", "+")
+        artist.replace(" ", "+")
+
+        query = "https://api.spotify.com/v1/search?query=track%3A{}+artist%3A{}&type=track".format(
             song, artist)
 
         header_field = {
@@ -133,20 +146,52 @@ class PlaylistConverter:
         # we have to go two levels within the dictionary to get all songs with the same name and artist
         songs_with_same_name = response_json["tracks"]["items"]
 
-        # get the URI from the first song in the list
-        song_uri = songs_with_same_name[0]["uri"]
+        song_uri = ""
+        if len(songs_with_same_name) > 0:
+            # get the URI from the first song in the list if it exists
+            song_uri = songs_with_same_name[0]["uri"]
 
         return song_uri
 
-    # add the list of songs into the spotify playlist
-    def add_to_spotify_playlist(self):
-        pass
+    # convert songs from the Youtube playlist into songs for the Spotify playlist
+    def convert_to_spotify_playlist(self):
+
+        # make a new playlist and get it's id
+        playlist_id = self.make_spotify_playlist()
+
+        query = "https://api.spotify.com/v1/playlists/{}/tracks".format(
+            playlist_id)
+
+        # create the two required header fields using the spotify OAuth token
+        header_fields = {
+            "Content-Type": "application/json",
+            "Authorization": self.bearer_token
+        }
+
+        # grab videos from the youtube playlist
+        self.spotify_URIs["uris"] = self.get_songs_from_youtube()
+
+        # format the URIs to make the request
+        # request_body = json.dumps(self.spotify_URIs, indent=2)
+
+        print(self.spotify_URIs)
+
+        request_body = json.dumps(self.spotify_URIs, indent=2)
+
+        response = requests.post(
+            query,
+            data=request_body,
+            headers=header_fields
+        )
+        response_json = response.json()
+
+        print(response_json)
+
+        # check for valid response status
+        # if response.status_code != 200:
+        # print("invalid response")
 
 
 if __name__ == "__main__":
-    newPlaylist = PlaylistConverter()
-
-    newPlaylist.get_youtube_playlist("music")
-
-    # newPlaylist.get_spotify_song_uri("advice", "kehlani")
-    # print(newPlaylist.make_spotify_playlist())
+    new_playlist = PlaylistConverter("music")
+    new_playlist.convert_to_spotify_playlist()
