@@ -37,7 +37,3 @@ Getting the Youtube client and getting the user's Youtube playlists - https://de
 Getting video URLs from a playlist - https://developers.google.com/youtube/v3/docs/playlistItems/list
 
 Youtube DL library - https://github.com/ytdl-org/youtube-dl
-
-Inspired by:
-
-https://github.com/TheComeUpCode/SpotifyGeneratePlaylist
